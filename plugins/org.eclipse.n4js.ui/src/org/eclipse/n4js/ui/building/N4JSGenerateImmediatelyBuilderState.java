@@ -311,15 +311,36 @@ public class N4JSGenerateImmediatelyBuilderState extends ClusteringBuilderState 
 			final IProgressMonitor monitor) {
 
 		if (allDeltas.isEmpty()) {
+
 			// allDeltas = new LinkedHashSet<>();
-			for (final URI uri : buildData.getToBeUpdated()) {
-				final IResourceDescription oldDescription = this.getResourceDescription(uri);
-				if (oldDescription != null) {
-					allDeltas.add(new DefaultResourceDescriptionDelta(oldDescription, null));
-				}
-			}
+			uris2deltas(buildData.getToBeUpdated(), allDeltas);
 			// changedDeltas = allDeltas;
+
+			Set<URI> affectedURIs;
+			if (!allDeltas.isEmpty()) {
+				do {
+					affectedURIs = primQueueAffectedResources(allRemainingURIs, oldState, newState, changedDeltas,
+							allDeltas, buildData, monitor);
+					uris2deltas(affectedURIs, allDeltas);
+				} while (!affectedURIs.isEmpty());
+			}
+
+		} else {
+
+			primQueueAffectedResources(allRemainingURIs, oldState, newState, changedDeltas, allDeltas, buildData,
+					monitor);
+
 		}
+	}
+
+	private Set<URI> primQueueAffectedResources(
+			Set<URI> allRemainingURIs,
+			IResourceDescriptions oldState,
+			CurrentDescriptions newState,
+			Collection<Delta> changedDeltas,
+			Collection<Delta> allDeltas,
+			BuildData buildData,
+			final IProgressMonitor monitor) {
 
 		// don't wanna copy super-class method, so using this helper to get the set of affected URIs:
 		final Set<URI> affectedURIs = new HashSet<>(allRemainingURIs);
@@ -372,6 +393,18 @@ public class N4JSGenerateImmediatelyBuilderState extends ClusteringBuilderState 
 				 */
 				newState.register(new DefaultResourceDescriptionDelta(resDesc,
 						new ResourceDescriptionWithoutModuleUserData(resDesc)));
+			}
+		}
+
+		return affectedURIs;
+	}
+
+	/** Converts given URIs to {@link Delta}s and adds those newly created deltas to 'addDeltasHere'. */
+	private void uris2deltas(Collection<URI> uris, Collection<Delta> addDeltasHere) {
+		for (final URI uri : uris) {
+			final IResourceDescription oldDescription = this.getResourceDescription(uri);
+			if (oldDescription != null) {
+				addDeltasHere.add(new DefaultResourceDescriptionDelta(oldDescription, null));
 			}
 		}
 	}
