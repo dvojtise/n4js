@@ -310,26 +310,36 @@ public class N4JSGenerateImmediatelyBuilderState extends ClusteringBuilderState 
 			BuildData buildData,
 			final IProgressMonitor monitor) {
 
+		final Set<URI> builtInNextRound;
 		if (allDeltas.isEmpty()) {
-
-			// allDeltas = new LinkedHashSet<>();
-			uris2deltas(buildData.getToBeUpdated(), allDeltas);
-			// changedDeltas = allDeltas;
-
-			Set<URI> affectedURIs;
-			if (!allDeltas.isEmpty()) {
-				do {
-					affectedURIs = primQueueAffectedResources(allRemainingURIs, oldState, newState, changedDeltas,
-							allDeltas, buildData, monitor);
-					uris2deltas(affectedURIs, allDeltas);
-				} while (!affectedURIs.isEmpty());
-			}
-
+			// first invocation, nothing built yet (affectedURIs will be empty)
+			builtInNextRound = buildData.getToBeUpdated();
 		} else {
+			// later invocation, affectedURIs returned from #primQueueAffectedResources() will be built next
+			builtInNextRound = primQueueAffectedResources(allRemainingURIs, oldState, newState, changedDeltas,
+					allDeltas, buildData, monitor);
+		}
 
-			primQueueAffectedResources(allRemainingURIs, oldState, newState, changedDeltas, allDeltas, buildData,
-					monitor);
-
+		// for each URI X built in the next round, mark dirty all URIs X depends on and that depend on X
+		// (cyclic dependencies)
+		for (URI uri : builtInNextRound) {
+			for (URI other : allRemainingURIs) {
+				if (!N4MF_MANIFEST.equals(other.lastSegment())) { // TODO .n4mf, .n4jsx, .n4idl
+					if (isAffected(uri, other, oldState, newState)) {
+						// 'uri' would be affected by a change in 'other' -> 'uri' depends on 'other'
+						if (isAffected(other, uri, oldState, newState)) {
+							// 'other' would be affected by a change in 'uri' -> 'other' depends on 'uri'
+							// i.e., we have a cyclic dependency
+							// --> mark 'other' as dirty
+							final IResourceDescription resDesc = this.getResourceDescription(other);
+							if (resDesc != null) {
+								newState.register(new DefaultResourceDescriptionDelta(resDesc,
+										new ResourceDescriptionWithoutModuleUserData(resDesc)));
+							}
+						}
+					}
+				}
+			}
 		}
 	}
 
@@ -397,6 +407,34 @@ public class N4JSGenerateImmediatelyBuilderState extends ClusteringBuilderState 
 		}
 
 		return affectedURIs;
+	}
+
+	private boolean isAffected(
+			URI candidateURI,
+			URI changedURI,
+			IResourceDescriptions oldState,
+			CurrentDescriptions newState) {
+
+		final Collection<Delta> changedDeltas = Sets.newLinkedHashSet();
+		final Collection<Delta> allDeltas = changedDeltas;
+		uris2deltas(Collections.singleton(changedURI), changedDeltas);
+
+		final IResourceDescription candidateDescription = oldState.getResourceDescription(candidateURI);
+		final IResourceDescription.Manager manager = getResourceDescriptionManager(candidateURI);
+		if (candidateDescription != null && manager != null) {
+			boolean affected;
+			if ((manager instanceof IResourceDescription.Manager.AllChangeAware)) {
+				affected = ((AllChangeAware) manager).isAffectedByAny(allDeltas, candidateDescription, newState);
+			} else {
+				if (changedDeltas.isEmpty()) {
+					affected = false;
+				} else {
+					affected = manager.isAffected(changedDeltas, candidateDescription, newState);
+				}
+			}
+			return affected;
+		}
+		return false;
 	}
 
 	/** Converts given URIs to {@link Delta}s and adds those newly created deltas to 'addDeltasHere'. */
