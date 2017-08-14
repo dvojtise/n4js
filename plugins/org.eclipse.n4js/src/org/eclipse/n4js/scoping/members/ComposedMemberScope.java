@@ -240,7 +240,8 @@ public abstract class ComposedMemberScope extends AbstractScope {
 			return cache;
 		}
 		// does not exist yet -> create new composed member cache in TModule:
-		final Resource res = ctrWithCache.eResource(); // may be null
+		final Resource resCtr = ctrWithCache.eResource(); // may be null
+		final Resource res = resCtr != null ? resCtr : context.eResource();
 		final TModule module = res instanceof N4JSResource ? ((N4JSResource) res).getModule() : null;
 		if (module != null) {
 			final ComposedMemberCache cacheNew = TypesFactory.eINSTANCE.createComposedMemberCache();
