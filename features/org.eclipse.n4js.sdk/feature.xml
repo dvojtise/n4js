@@ -69,10 +69,6 @@ Contributors:
          version="0.0.0"/>
 
    <includes
-         id="org.eclipse.n4js.xpect.sdk"
-         version="0.0.0"/>
-
-   <includes
          id="org.eclipse.n4js.runner.sdk"
          version="0.0.0"/>
 
@@ -103,7 +99,7 @@ Contributors:
          version="0.0.0"
          unpack="false"/>
 
-    <plugin
+   <plugin
          id="org.eclipse.n4js.utils.ui"
          download-size="0"
          install-size="0"
